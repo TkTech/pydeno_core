@@ -1,0 +1,8 @@
+# Python cruft.
+venv
+*.pyc
+*.egg-info
+
+# Rust cruft.
+target/
+*.so
