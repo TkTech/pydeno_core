@@ -1,3 +1,5 @@
+WIP: THIS PROJECT SHOULD NOT BE USED. IT HAS ONLY JUST STARTED DEVELOPMENT.
+
 # pydeno_core
 
 This project provides Python bindings to the [deno_core][] runtime (v8 under
