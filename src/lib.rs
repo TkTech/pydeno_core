@@ -1,6 +1,7 @@
 use {
     deno_core::{
         op_async, op_sync, JsRuntime, OpState, RuntimeOptions, ZeroCopyBuf,
+        Snapshot
     },
     pyo3::{exceptions::*, prelude::*},
     pythonize::{depythonize, pythonize},
@@ -36,8 +37,6 @@ impl PyFuture {
     #[call]
     #[args(task)]
     pub fn __call__(&mut self, self_: pyo3::Py<Self>) -> PyResult<()> {
-        println!("{}", line!());
-
         Python::with_gil(|py| {
             let asyncio = py.import("asyncio")?;
             let ensure = asyncio.getattr("ensure_future")?;
@@ -45,10 +44,8 @@ impl PyFuture {
 
             // let task = asyncio.call1("create_task", (self.awaitable.as_ref(py),)).unwrap();
 
-            println!("{}", line!());
             let callback = self_.getattr(py, "callback")?;
             task.call_method1("add_done_callback", (callback,))?;
-            println!("{}", line!());
 
             Ok(())
         })
@@ -98,8 +95,17 @@ static WAKER_VTABLE: RawWakerVTable =
 #[pymethods]
 impl Runtime {
     #[new]
-    fn new() -> PyResult<Self> {
+    #[args("*",
+           will_snapshot="false",
+           startup_snapshot="None"
+    )]
+    fn new(will_snapshot: bool, startup_snapshot: Option<Vec<u8>>) -> PyResult<Self> {
         let runtime = JsRuntime::new(RuntimeOptions {
+            will_snapshot,
+            startup_snapshot: match startup_snapshot {
+                Some(ss) => Some(Snapshot::Boxed(ss.into_boxed_slice())),
+                None => None
+            },
             ..Default::default()
         });
 
@@ -115,8 +121,8 @@ impl Runtime {
 
     /// Execute some JavaScript within the Sandbox, preserving local
     /// state between calls.
-    pub fn execute(&mut self, filename: &str, source: &str) -> PyResult<()> {
-        self.runtime.execute(filename, source).unwrap();
+    pub fn execute_script(&mut self, filename: &str, source: &str) -> PyResult<()> {
+        self.runtime.execute_script(filename, source).unwrap();
         Ok(())
     }
 
@@ -125,7 +131,7 @@ impl Runtime {
     pub fn poll_once(&mut self) -> PyResult<PyObject> {
         let mut context = Context::from_waker(&self.waker);
 
-        match self.runtime.poll_event_loop(&mut context) {
+        match self.runtime.poll_event_loop(&mut context, false) {
             Poll::Ready(v) => match v {
                 Ok(_) => Python::with_gil(|py| {
                     // Is there truly no macro for True & False? This feels
@@ -209,7 +215,6 @@ impl Runtime {
                                 })
                             },
                             Err(e) => {
-                                println!("{}: {}", line!(), e);
                                 Err(deno_core::error::generic_error("Unknown"))
                             }
                         }
@@ -217,7 +222,6 @@ impl Runtime {
                     Err(e) => {
                         // Raised when the oneshot::channel has been cancelled due to the sender
                         // dropping.
-                        println!("{}: {}", line!(), e);
                         Err(deno_core::error::generic_error("CancelledError"))
                     }
                 }
@@ -228,6 +232,12 @@ impl Runtime {
         self.runtime.sync_ops_cache();
 
         Ok(())
+    }
+
+    pub fn snapshot(&mut self, py: Python) -> PyObject {
+        let snapshot = self.runtime.snapshot();
+        let slice: &[u8] = &*snapshot;
+        pyo3::types::PyBytes::new(py, &slice).into()
     }
 }
 

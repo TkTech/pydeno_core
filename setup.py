@@ -33,7 +33,8 @@ setup(
     extras_require={
         'dev': [
             'maturin',
-            'pytest'
+            'pytest',
+            'twine'
         ]
     },
     python_requires='>=3.7'
