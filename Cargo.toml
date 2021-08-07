@@ -15,9 +15,9 @@ deno_core = "0.95.0"
 serde_json = "1.0"
 serde_v8 = "0.4.0"
 serde = "1.0"
-pythonize = "0.13.0"
+pythonize = "0.14.0"
 futures = "0.3"
 
 [dependencies.pyo3]
-version = "0.13.2"
+version = "0.14.0"
 features = ["extension-module"]
